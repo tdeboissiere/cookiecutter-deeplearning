@@ -1,10 +1,6 @@
-# Cookiecutter Data Science
+# Cookiecutter Deep Learning
 
-_A logical, reasonably standardized, but flexible project structure for doing and sharing data science work._
-
-
-#### [Project homepage](http://drivendata.github.io/cookiecutter-data-science/)
-
+_A logical, reasonably standardized, but flexible project structure for doing and sharing deep learning work (with python + Keras + Theano)._
 
 ### Requirements to use the cookiecutter template:
 -----------
@@ -15,7 +11,5 @@ _A logical, reasonably standardized, but flexible project structure for doing an
 ### To start a new project, run:
 ------------
 
-    cookiecutter https://github.com/drivendata/cookiecutter-data-science
+    cookiecutter https://github.com/tdeboissiere/cookiecutter-deeplearning.git
 
-
-[![asciicast](https://asciinema.org/a/9bgl5qh17wlop4xyxu9n9wr02.png)](https://asciinema.org/a/9bgl5qh17wlop4xyxu9n9wr02)
