@@ -1,28 +1,30 @@
-# -*- coding: utf-8 -*-
 import os
-import click
-import logging
+import sys
+import h5py
+import cv2
+import glob
+import pandas as pd
+import numpy as np
+import parmap
 from dotenv import find_dotenv, load_dotenv
 
 
-@click.command()
-@click.argument('input_filepath', type=click.Path(exists=True))
-@click.argument('output_filepath', type=click.Path())
-def main(input_filepath, output_filepath):
-    logger = logging.getLogger(__name__)
-    logger.info('making final data set from raw data')
+def resize_VGG(img):
+    """
+    Resize img to a 224 x 224 image
+    """
+
+    return cv2.resize(img,
+                      (224, 224),
+                      interpolation=cv2.INTER_AREA)
 
 
 if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
 
-    # not used in this stub but often useful for finding various files
-    project_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
-    
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
 
-    main()
-
+    # Check the env variables exist
+    raw_msg = "Set your raw data absolute path in the .env file at project root"
+    data_msg = "Set your processed data absolute path in the .env file at project root"
+    assert "RAW_DIR" in os.environ, raw_msg
+    assert "DATA_DIR" in os.environ, data_msg

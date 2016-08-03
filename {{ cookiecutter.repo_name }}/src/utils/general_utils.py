@@ -1,12 +1,15 @@
-import matplotlib.pylab as plt
 import sys
 import os
 import pandas as pd
 import h5py
 import numpy as np
 from sklearn.metrics import confusion_matrix
-import matplotlib.gridspec as gridspec
-from matplotlib.pyplot import cm
+try:
+    import matplotlib.pylab as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.pyplot import cm
+except:
+    pass
 import json
 import glob
 
@@ -18,9 +21,9 @@ def pretty_print(string):
     args: string (str) string to print
     """
 
-    print
-    print string
-    print
+    print("")
+    print(string)
+    print("")
 
 
 def remove_files(files):
@@ -55,7 +58,7 @@ def create_dir(dirs):
             os.makedirs(dirs)
 
 
-def plot_batch(X, y, batch_size):
+def plot_batch_adversarial(X, y, batch_size):
     """
     Plot the images in X, add a label (in y)
 
@@ -63,7 +66,8 @@ def plot_batch(X, y, batch_size):
              (valid batch_sizes are multiple of 2 from 8 to 64)
     """
 
-    d_class = {0: "False P", 1: "True Sleep"}
+    d_class = {0: "Training set",
+               1: "Test set"}
 
     assert X.shape[0] >= batch_size, "batch size greater than X.shape[0]"
 
@@ -76,13 +80,69 @@ def plot_batch(X, y, batch_size):
     elif batch_size == 64:
         gs = gridspec.GridSpec(8, 8)
     else:
-        print "Batch too big"
+        print("Batch too big")
         return
     fig = plt.figure(figsize=(15, 15))
     for i in range(batch_size):
         ax = plt.subplot(gs[i])
-        ax.imshow(X[i, 0, :, :], cmap="Greys_r")
-        ax.set_xlabel(d_class[int(y[i])], fontsize=15)
+        img = X[i, :, :, :]
+        img_shape = img.shape
+        min_s = min(img_shape)
+        if img_shape.index(min_s) == 0:
+            img = img.transpose(1, 2, 0)
+        ax.imshow(img)
+        ax.set_xlabel(d_class[int(y[i])], fontsize=8)
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+    gs.tight_layout(fig)
+    plt.show()
+    raw_input()
+    plt.clf()
+    plt.close()
+
+
+def plot_batch(X, y, batch_size):
+    """
+    Plot the images in X, add a label (in y)
+
+    details: build a gridspec of the size of the batch
+             (valid batch_sizes are multiple of 2 from 8 to 64)
+    """
+
+    d_class = {0: "safe driving",
+               1: "texting - right",
+               2: "talking on the phone - right",
+               3: "texting - left",
+               4: "talking on the phone - left",
+               5: "operating the radio",
+               6: "drinking",
+               7: "reaching behind",
+               8: "hair and makeup",
+               9: "talking to passenger"}
+
+    assert X.shape[0] >= batch_size, "batch size greater than X.shape[0]"
+
+    if batch_size == 8:
+        gs = gridspec.GridSpec(2, 4)
+    elif batch_size == 16:
+        gs = gridspec.GridSpec(4, 4)
+    elif batch_size == 32:
+        gs = gridspec.GridSpec(4, 8)
+    elif batch_size == 64:
+        gs = gridspec.GridSpec(8, 8)
+    else:
+        print("Batch too big")
+        return
+    fig = plt.figure(figsize=(15, 15))
+    for i in range(batch_size):
+        ax = plt.subplot(gs[i])
+        img = X[i, :, :, :]
+        img_shape = img.shape
+        min_s = min(img_shape)
+        if img_shape.index(min_s) == 0:
+            img = img.transpose(1, 2, 0)
+        ax.imshow(img)
+        ax.set_xlabel(d_class[int(y[i])], fontsize=8)
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
     gs.tight_layout(fig)
@@ -221,13 +281,13 @@ def plot_model_clf_dist(data_path, model_archi_file, weights_file):
 
         # model reconstruction from JSON:
         from keras.models import model_from_json
-        print "Load archi"
+        print("Load archi")
         model = model_from_json(open(model_archi_file).read())
-        print "Load weights"
+        print("Load weights")
         model.load_weights(weights_file)
-        print "Compile"
+        print("Compile")
         model.compile(optimizer="adagrad", loss="categorical_crossentropy")
-        print "Predict"
+        print("Predict")
         y_pred_proba = model.predict(X_test, verbose=0)
         plot_clf_distribution(y_test, y_pred_proba)
 
@@ -249,7 +309,7 @@ def save_exp_log(file_name, d_log):
 def plot_results():
     """
     Utility to compare the results of several experiments (in terms) of loss
-    
+
     (WIP)
     """
     list_exp = glob.glob("./Log/*")
@@ -365,6 +425,21 @@ def plot_results():
     plt.show()
     raw_input()
 
+
+def pickle3_to_pickle2():
+
+    import pickle
+    list_f = ["../../models/ResNet/Experiment_5/resnet_weights_fold%s.pickle" % i for i in range(8)]
+    list_fpyth2 = ["../../models/ResNet/resnet_weights_fold%s_python2.pickle" % i for i in range(8)]
+    for f, fout in zip(list_f, list_fpyth2):
+
+        with open(f, "rb") as fp:
+            d = pickle.load(fp)
+            print(d.keys())
+            print(d["values"][0][0][0])
+            with open(fout, "wb") as fpyth2:
+                pickle.dump(d, fpyth2, protocol=2)
+
 if __name__ == '__main__':
 
-    pass
+    pickle3_to_pickle2()

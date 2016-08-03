@@ -3,9 +3,10 @@ import numpy as np
 import multiprocessing
 import h5py
 import os
-import cv2
-import matplotlib.pylab as plt
-import matplotlib.gridspec as gridspec
+try:
+    import cv2
+except:
+    pass
 
 
 class AugDataGenerator(object):
@@ -54,13 +55,15 @@ class AugDataGenerator(object):
                  maxproc=8,
                  num_cached=10,
                  random_augm=None,
-                 do3D=None):
+                 do3D=None,
+                 hdf5_file_semi=None):
 
         # Check file exists
         assert os.path.isfile(hdf5_file), hdf5_file + " doesn't exist"
 
         # Initialize class internal variables
         self.hdf5_file = hdf5_file
+        self.hdf5_file_semi = hdf5_file_semi
         self.batch_size = batch_size
         self.prob = prob
         self.dset = dset
@@ -229,6 +232,32 @@ class AugDataGenerator(object):
                 Xtf = Xtf.reshape((height, width, num_chan))
                 X[idx] = Xtf.transpose(2, 0, 1)
 
+            elif tf_type == "hist_equal":
+                Xtf[:, :, 0] = cv2.equalizeHist(Xtf[:, :, 0])
+                Xtf[:, :, 1] = cv2.equalizeHist(Xtf[:, :, 1])
+                Xtf[:, :, 2] = cv2.equalizeHist(Xtf[:, :, 2])
+                X[idx] = Xtf.transpose(2, 0, 1)
+
+            elif tf_type == "random_occlusion":
+                occ_size_x = self.d_transform[tf_name]["occ_size_x"]
+                occ_size_y = self.d_transform[tf_name]["occ_size_y"]
+                # Random pos
+                x_start = np.random.randint(0, Xtf.shape[1] - occ_size_x)
+                y_start = np.random.randint(0, Xtf.shape[0] - occ_size_y)
+                Xtf[y_start: y_start + occ_size_y, x_start: x_start + occ_size_x, :] = 0
+                X[idx] = Xtf.transpose(2, 0, 1)
+            elif tf_type == "random_mask":
+                arr_mask = self.d_transform[tf_name]["arr_mask"]
+                mask_index = np.random.randint(0, arr_mask.shape[0])
+                cmap = arr_mask[mask_index].transpose(1,2,0)
+                Xtf[cmap < np.percentile(cmap, 50)] = 0
+                # cmap = cmap < np.median(cmap)
+                # for k in range(Xtf.shape[0]):
+                #     for l in range(Xtf.shape[1]):
+                #         if cmap[k, l]:
+                #             Xtf[k, l, :] = 0
+                X[idx] = Xtf.transpose(2, 0, 1)
+
         return X
 
     def _augment(self, X):
@@ -238,7 +267,7 @@ class AugDataGenerator(object):
 
         # If transformations are to be selected randomly,
         # select a random chunk of self.transformations
-        self.transformations = np.array(self.d_transform.keys())
+        self.transformations = np.array(list(self.d_transform.keys()))  # add list() for python3
         if self.random_augm:
             max_num_augm = len(self.transformations)
             assert self.random_augm <= max_num_augm,\
@@ -265,6 +294,9 @@ class AugDataGenerator(object):
 
     def get_config(self):
 
+        for key in self.d_config["transforms"].keys():
+            if "random_mask" in key:
+                self.d_config["transforms"].pop(key, None)
         return self.d_config
 
     def add_transform(self, tf_type, **kwargs):
@@ -284,6 +316,9 @@ class AugDataGenerator(object):
         tf_type = "random_erode",  kwargs= {"kernel_size": float},
         tf_type = "fixed_dilate",  kwargs= {"kernel_size": float},
         tf_type = "random_dilate", kwargs= {"kernel_size": float}
+        tf_type = "hist_equal",    kwargs= {},
+        tf_type = "random_occlusion",    kwargs= {"occ_size_x": int, "occ_size_y": int},
+        tf_type = "random_mask",    kwargs= {"arr_mask": np array}
         """
 
         # Update self.d_transform
@@ -323,7 +358,7 @@ class AugDataGenerator(object):
             if not check1 and check2:
                 raise AssertionError("Chosen crop params don't fit image size")
 
-    def gen_batch(self):
+    def gen_batch(self, fold=None):
         """ Use multiprocessing to generate batches in parallel. """
         try:
             queue = multiprocessing.Queue(maxsize=self.num_cached)
@@ -335,49 +370,31 @@ class AugDataGenerator(object):
                     # Load the data from HDF5 file
                     with h5py.File(self.hdf5_file, "r") as hf:
                         num_chan, height, width = self.X_shape[-3:]
-                        # If we have a video
-                        if len(self.X_shape) == 5:
-                            index = np.random.choice(self.n_samples,
-                                                     self.batch_size,
-                                                     replace=False)
-                            index = sorted(index)  # Sorting required for the indexing to work
-                            if self.do3D:
-                                num_frames = self.X_shape[1]
-                                X = hf["%s_data" % self.dset][index, :,
-                                                              :, :, :].reshape((self.batch_size,
-                                                                                num_frames,
-                                                                                num_chan,
-                                                                                height,
-                                                                                width))
-                                X = X.transpose(0, 2, 1, 3, 4)
-                            else:
-                                frame_index = np.random.randint(0, self.X_shape[1])
-                                X = hf["%s_data" % self.dset][index, frame_index,
-                                                              :, :, :].reshape((self.batch_size,
-                                                                                num_chan,
-                                                                                height,
-                                                                                width))
+                        if fold is not None:
+                            # Access train index for the given fold
+                            idx_train = hf["train_fold%s" % fold][:]
+                            # Select idx at random for the batch
+                            idx_train_batch = np.random.choice(
+                                idx_train, self.batch_size, replace=False)
+                            # Sort for H5py
+                            idx_train_batch = np.sort(idx_train_batch)
+                            # Get X and y
+                            X = hf["%s_data" % self.dset][idx_train_batch, :, :, :]
+                            y = hf["%s_label" % self.dset][:][idx_train_batch].astype(int)
+                        else:
+                            # Select idx at random for the batch
+                            idx_start = np.random.randint(0, self.X_shape[0] - self.batch_size)
+                            idx_end = idx_start + self.batch_size
+                            # Get X and y
+                            X = hf["%s_data" % self.dset][idx_start: idx_end, :, :, :]
+                            y = hf["%s_label" % self.dset][:][idx_start: idx_end]
 
-                        # If we have single frames
-                        elif len(self.X_shape) == 4:
-                            index = np.random.choice(self.n_samples,
-                                                     self.batch_size,
-                                                     replace=False)
-                            index = sorted(index)  # Sorting required for the indexing to work
-                            X = hf["%s_data" % self.dset][index,
-                                                          :, :, :].reshape((self.batch_size,
-                                                                            num_chan,
-                                                                            height,
-                                                                            width))
-
-                        y = hf["%s_label" % self.dset][:][index]
                         # Augment the data (i.e. randomly distort some of the images in X)
                         X = self._augment(X)
-                        X = X.astype(np.float32) / 255. - 0.5
                         # Put the data in a queue
                         queue.put((X, y))
                 except:
-                    print "Nothing here"
+                    print("Nothing here")
 
             processes = []
 
@@ -405,3 +422,183 @@ class AugDataGenerator(object):
             queue.close()
             raise
 
+    def gen_batch_inmemory(self, X, y, idx_train=None):
+        """Generate batch, assuming X and y are loaded in memory in the main program"""
+
+        while True:
+            if idx_train is not None:
+                # Select idx at random for the batch
+                idx_train_batch = np.random.choice(
+                    idx_train, self.batch_size, replace=False)
+                # Get X and y
+                X_batch = X[idx_train_batch, :, :, :]
+                y_batch = y[idx_train_batch].astype(int)
+            else:
+                # Select idx at random for the batch
+                idx_train_batch = np.random.choice(
+                    X.shape[0], self.batch_size, replace=False)
+                # Get X and y
+                X_batch = X[idx_train_batch, :, :, :]
+                y_batch = y[idx_train_batch].astype(int)
+
+            X_batch = self._augment(X_batch)
+            yield X_batch, y_batch
+
+    def gen_batch_inmemory_style(self, X, y, X_style, y_style,
+                                 idx_train, idx_style, prob=0.15):
+        """Generate batch, assuming X and y are loaded in memory in the main program"""
+
+        while True:
+            # Select idx at random for the batch
+            idx_train_batch = np.random.choice(
+                idx_train, self.batch_size, replace=False)
+            # Get X and y
+            X_batch = X[idx_train_batch, :, :, :]
+            y_batch = y[idx_train_batch].astype(int)
+
+            X_batch = self._augment(X_batch)
+
+            idx_style = np.random.choice(
+                idx_style, int(prob * self.batch_size), replace=False)
+            X_batch[: len(idx_style)] = X_style[idx_style]
+            y_batch[: len(idx_style)] = y_style[idx_style]
+
+            yield X_batch, y_batch
+
+    def gen_batch_semi_super(self, X, y, idx_train=None, weak_labels=False):
+        """ Use multiprocessing to generate batches in parallel. """
+        try:
+            queue = multiprocessing.Queue(maxsize=self.num_cached)
+
+            # define producer (putting items into queue)
+            def producer():
+
+                try:
+
+                    if idx_train is not None:
+                        # Select idx at random for the batch
+                        idx_train_batch = np.random.choice(
+                            idx_train, self.batch_size, replace=False)
+                        # Get X and y
+                        X_batch = X[idx_train_batch, :, :, :]
+                        y_batch = y[idx_train_batch].astype(int)
+                    else:
+                        # Select idx at random for the batch
+                        idx_train_batch = np.random.choice(
+                            self.X_shape[0], self.batch_size, replace=False)
+                        # Sort for H5py
+                        idx_train_batch = np.sort(idx_train_batch)
+                        # Get X and y
+                        X_batch = X[idx_train_batch, :, :, :]
+                        y_batch = y[idx_train_batch].astype(int)
+
+                    # Load the data from HDF5 file
+                    with h5py.File(self.hdf5_file_semi, "r") as hf:
+                        num_chan, height, width = self.X_shape[-3:]
+
+                        # Select idx at random for the batch
+                        semi_batch_size = int(1.3 * self.batch_size)
+                        idx_start = np.random.randint(0, hf["test_data"].shape[0] - semi_batch_size)
+                        idx_end = idx_start + semi_batch_size
+                        # Get X
+                        X_semi = hf["test_data"][idx_start: idx_end, :, :, :]
+                        if weak_labels:
+                            y_semi = hf["test_label"][idx_start: idx_end, :]
+
+                    # Augment the data (i.e. randomly distort some of the images in X)
+                    X_batch = self._augment(X_batch)
+                    # Put the data in a queue
+                    if weak_labels:
+                        queue.put((X_batch, y_batch, X_semi, y_semi))
+                    else:
+                        queue.put((X_batch, y_batch, X_semi))
+                except:
+                    print("Nothing here")
+
+            processes = []
+
+            def start_process():
+                for i in range(len(processes), self.maxproc):
+                    # Reset the seed ! (else the processes share the same seed)
+                    np.random.seed()
+                    thread = multiprocessing.Process(target=producer)
+                    time.sleep(0.01)
+                    thread.start()
+                    processes.append(thread)
+
+            # run as consumer (read items from queue, in current thread)
+            while True:
+                processes = [p for p in processes if p.is_alive()]
+
+                if len(processes) < self.maxproc:
+                    start_process()
+
+                yield queue.get()
+
+        except:
+            for th in processes:
+                th.terminate()
+            queue.close()
+            raise
+
+
+def apply_transform(X, augmentation_type, d_map, d_percentile):
+
+    assert X.shape[0] == 11
+
+    if augmentation_type == "masking":
+        for i in range(10):
+            X[i + 1][d_map[i] < d_percentile[i]] = 0
+        return X
+
+    else:
+        X = X.transpose(0,2,3,1)
+        h, w, c = X.shape[1:]
+
+        # Equalize
+        for i in range(3):
+            X[1, :, :, i] = cv2.equalizeHist(X[1, :, :, 1])
+
+        # Blur
+        X[2] = cv2.blur(X[2], (3, 3)).reshape((h, w, c))
+
+        # Rotate
+        angle = 20
+        rotM = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1)
+        X[3] = cv2.warpAffine(X[3], rotM, (w, h)).reshape((h, w, c))
+
+        # Rotate
+        angle = -20
+        rotM = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1)
+        X[4] = cv2.warpAffine(X[4], rotM, (w, h)).reshape((h, w, c))
+
+        # Flip
+        X[5] = X[5, :, ::-1, :]
+
+        # Crop
+        X[6] = cv2.resize(X[6, 30:224, :, :],
+                          (w, h),
+                          interpolation=cv2.INTER_CUBIC)
+
+        # Crop
+        X[7] = cv2.resize(X[7, :, 30:224, :],
+                          (w, h),
+                          interpolation=cv2.INTER_CUBIC)
+
+        # Crop
+        X[8] = cv2.resize(X[8, :, 0:190, :],
+                          (w, h),
+                          interpolation=cv2.INTER_CUBIC)
+
+        # Crop
+        X[9] = cv2.resize(X[9, :, 0:190, :],
+                          (w, h),
+                          interpolation=cv2.INTER_CUBIC)
+
+        # Dilate
+        # Crop
+        X[10] = cv2.resize(X[10, 30:200, 30:200, :],
+                           (w, h),
+                           interpolation=cv2.INTER_CUBIC)
+
+        return X.transpose(0, 3, 1, 2)

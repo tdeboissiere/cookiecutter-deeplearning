@@ -1,236 +1,381 @@
+import keras.backend as K
 from keras.models import Sequential
 from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D
 from keras.layers.convolutional import MaxPooling2D
 from keras.layers.convolutional import ZeroPadding2D
-from keras.utils import np_utils
-from keras.utils import generic_utils
-from keras.optimizers import RMSprop, Adam
-from keras.layers.normalization import BatchNormalization
-# from keras.preprocessing.image import ImageDataGenerator
-# from keras.models import model_from_json
-# from keras.callbacks import Callback
+from keras.layers.convolutional import AveragePooling2D
 
-from dotenv import load_dotenv, find_dotenv
+import theano.tensor.nnet.abstract_conv as absconv
 
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import log_loss
-
-import os
-import sys
-import glob
 import h5py
-import numpy as np
-# import matplotlib.pylab as plt
-# import matplotlib.gridspec as gridspec
-import time
-import shutil
-# Utils
-sys.path.append("../utils")
-import batch_utils
-import general_utils
 
 
-def SFCNN(nb_classes):
+def CNN(nb_classes, img_dim, pretr_weights_file=None, model_name=None):
     """
     Build Convolution Neural Network
 
     args : nb_classes (int) number of classes
+           img_dim (tuple of int) num_chan, height, width
 
     returns : model (keras NN) the Neural Net model
     """
 
     model = Sequential()
-    model.add(ZeroPadding2D((1, 1), input_shape=(1, 160, 160)))
-    model.add(Convolution2D(8, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(8, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    model.add(Convolution2D(32, 3, 3, name="convolution2d_1", input_shape=(3, 224, 224), border_mode="same", activation='relu'))
+    model.add(Convolution2D(32, 3, 3, name="convolution2d_2", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_1"))
 
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(16, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(16, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    model.add(Convolution2D(64, 3, 3, name="convolution2d_3", border_mode="same", activation='relu'))
+    model.add(Convolution2D(64, 3, 3, name="convolution2d_4", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_2"))
 
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(32, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(32, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(32, 3, 3, activation='relu', init="he_normal"))
-    # model.add(BatchNormalization())
-    model.add(MaxPooling2D((2,2), strides=(2,2)))
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_5", border_mode="same", activation='relu'))
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_6", border_mode="same", activation='relu'))
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_7", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_3"))
 
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(64, 3, 3, activation='relu', init="he_normal"))
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(64, 3, 3, activation='relu', init="he_normal"))
-    model.add(ZeroPadding2D((1,1)))
-    model.add(Convolution2D(64, 3, 3, activation='relu', init="he_normal"))
-    model.add(MaxPooling2D((2,2), strides=(2,2)))
+    # model.add(Convolution2D(256, 3, 3, name="convolution2d_8", border_mode="same", activation='relu'))
+    # model.add(Convolution2D(256, 3, 3, name="convolution2d_9", border_mode="same", activation='relu'))
+    # model.add(Convolution2D(256, 3, 3, name="convolution2d_10", border_mode="same", activation='relu'))
+    # model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_4"))
 
-    # model.add(ZeroPadding2D((1,1)))
-    # model.add(Convolution2D(128, 3, 3, activation='relu', init="he_normal"))
-    # model.add(ZeroPadding2D((1,1)))
-    # model.add(Convolution2D(128, 3, 3, activation='relu', init="he_normal"))
-    # model.add(ZeroPadding2D((1,1)))
-    # model.add(Convolution2D(128, 3, 3, activation='relu', init="he_normal"))
-    # model.add(MaxPooling2D((2,2), strides=(2,2)))
+    # model.add(Convolution2D(512, 3, 3, name="convolution2d_11", border_mode="same", activation='relu'))
+    # model.add(Convolution2D(512, 3, 3, name="convolution2d_12", border_mode="same", activation='relu'))
+    # model.add(Convolution2D(512, 3, 3, name="convolution2d_13", border_mode="same", activation='relu'))
+    # model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_5"))
 
-    model.add(Flatten())
-    model.add(Dense(2048, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(2048, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(nb_classes, activation='softmax'))
+    model.add(Flatten(name="flatten_1"))
+    model.add(Dense(1024, activation='relu', name="dense_1"))
+    model.add(Dropout(0.5, name="dropout_1"))
+    model.add(Dense(1024, activation='relu', name="dense_2"))
+    model.add(Dropout(0.5, name="dropout_2"))
+    model.add(Dense(nb_classes, activation='softmax', name="dense_3"))
 
-    model.name = "SFCNN"
+    if model_name:
+        model.name = model_name
+    else:
+        model.name = "CNN"
+
+    if pretr_weights_file:
+        model.load_weights(pretr_weights_file)
+        model.layers.pop()
+        model.outputs = [model.layers[-1].output]
+        model.layers[-1].outbound_nodes = []
+        model.add(Dense(nb_classes, activation='softmax', name="dense_4"))
 
     return model
 
 
-def train(model, **kwargs):
+def VGG(nb_classes, img_dim, pretr_weights_file=None, model_name=None):
+    """
+    Build Convolution Neural Network
 
-    # Roll out the parameters
-    nb_classes = kwargs["nb_classes"]
-    num_frames = kwargs["num_frames"]
-    batch_size = kwargs["batch_size"]
-    n_batch_per_epoch = kwargs["n_batch_per_epoch"]
-    nb_epoch = kwargs["nb_epoch"]
-    prob = kwargs["prob"]
-    do_plot = kwargs["do_plot"]
-    data_file = kwargs["data_file"]
+    args : nb_classes (int) number of classes
+           img_dim (tuple of int) num_chan, height, width
+           pretr_weights_file (str) file holding pre trained weights
 
-    # Load env variables in (in .env file at the root of the project)
-    load_dotenv(find_dotenv())
+    returns : model (keras NN) the Neural Net model
+    """
 
-    # Load env variables
-    model_dir = os.path.expanduser(os.environ.get("MODEL_DIR"))
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=img_dim, name="zeropadding2d_1"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_1"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_2"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_2"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_1"))
 
-    # Output path where we store experiment log and weights
-    model_dir = os.path.join(model_dir, model.name)
-    # Create if it does not exist
-    general_utils.create_dir(model_dir)
-    # Automatically determine experiment name
-    list_exp = glob.glob(model_dir + "/*")
-    # Create the experiment dir and weights dir
-    exp_dir = os.path.join(model_dir, "Experiment_%s" % len(list_exp))
-    weights_dir = os.path.join(exp_dir, "Weights")
-    general_utils.create_dir([exp_dir, weights_dir])
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_3"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_3"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_4"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_4"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_2"))
 
-    # Load test data in memory for fast error evaluation
-    with h5py.File(data_file, "r") as hf:
-        X_test, y_test = hf["test_data"][:5000, :, :, :], hf["test_label"][:5000]
-        X_test = X_test / 255. - 0.5
-        y_test_bin = np_utils.to_categorical(y_test, nb_classes=nb_classes)
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_5"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_5"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_6"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_6"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_7"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_7"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_3"))
 
-    # Compile model.
-    # opt = RMSprop(lr=5E-6, rho=0.9, epsilon=1e-06)
-    opt = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_8"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_8"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_9"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_9"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_10"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_10"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_4"))
 
-    general_utils.pretty_print("Compiling...")
-    model.compile(optimizer=opt, loss='categorical_crossentropy')
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_11"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_11"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_12"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_12"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_13"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_13"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_5"))
 
-    # Batch generator
-    DataAug = batch_utils.AugDataGenerator(data_file,
-                                           batch_size=batch_size,
-                                           prob=prob,
-                                           dset="train",
-                                           maxproc=4,
-                                           num_cached=60,
-                                           random_augm=False)
-    DataAug.add_transform("h_flip")
-    # DataAug.add_transform("v_flip")
-    # DataAug.add_transform("fixed_rot", angle=40)
-    DataAug.add_transform("random_rot", angle=40)
-    # # DataAug.add_transform("fixed_tr", tr_x=40, tr_y=40)
-    # DataAug.add_transform("random_tr", tr_x=40, tr_y=40)
-    # DataAug.add_transform("fixed_blur", kernel_size=5)
-    DataAug.add_transform("random_blur", kernel_size=7)
-    # DataAug.add_transform("fixed_erode", kernel_size=4)
-    DataAug.add_transform("random_erode", kernel_size=3)
-    # # DataAug.add_transform("fixed_dilate", kernel_size=4)
-    DataAug.add_transform("random_dilate", kernel_size=3)
-    # # DataAug.add_transform("fixed_crop", pos_x=10, pos_y=10,
-    #                          # crop_size_x=200, crop_size_y=200)
-    DataAug.add_transform("random_crop", min_crop_size=140, max_crop_size=160)
+    model.add(Flatten(name="flatten_1"))
+    model.add(Dense(4096, activation='relu', name="dense_1"))
+    model.add(Dropout(0.5, name="dropout_1"))
+    model.add(Dense(4096, activation='relu', name="dense_2"))
+    model.add(Dropout(0.5, name="dropout_2"))
+    model.add(Dense(1000, activation='softmax', name="dense_3"))
 
-    epoch_size = n_batch_per_epoch * batch_size
+    if model_name:
+        model.name = model_name
+    else:
+        model.name = "VGG"
 
-    json_string = model.to_json()
-    with open(os.path.join(exp_dir, '%s_archi.json' % model.name), 'w') as f:
-        f.write(json_string)
+    if pretr_weights_file:
+        model.load_weights(pretr_weights_file)
+        model.layers.pop()
+        model.outputs = [model.layers[-1].output]
+        model.layers[-1].outbound_nodes = []
+        model.add(Dense(nb_classes, activation='softmax', name="dense_4"))
 
-    # Save losses
-    list_train_loss = []
-    list_test_loss = []
+    # Freeze layers until specified number
+    # for k in range(freeze_until):
+    #     model.layers[k].trainable = True
 
-    try:
-        for e in range(nb_epoch):
-            # Initialize progbar and batch counter
-            progbar = generic_utils.Progbar(epoch_size)
-            batch_counter = 1
-            # Start Epoch
-            l_train_loss = []
-            start = time.time()
+    return model
 
-            model.save_weights(os.path.join(weights_dir,
-                                            '%s_weights_epoch%s.h5' %
-                                            (model.name, e)),
-                               overwrite=True)
 
-            for X, y in DataAug.gen_batch():
-                if do_plot:
-                    general_utils.plot_batch(X, y, batch_size)
-                # Convert y to binary matrix
-                y = np_utils.to_categorical(y, nb_classes=2)
-                train_loss = model.train_on_batch(X, y)
-                l_train_loss.append(train_loss)
-                batch_counter += 1
-                progbar.add(batch_size, values=[("train loss", train_loss)])
-                if batch_counter >= n_batch_per_epoch:
+def VGG19(nb_classes, img_dim, pretr_weights_file=None, model_name=None):
+    """
+    Build Convolution Neural Network
+
+    args : nb_classes (int) number of classes
+           img_dim (tuple of int) num_chan, height, width
+
+    returns : model (keras NN) the Neural Net model
+    """
+
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=img_dim, name="zeropadding2d_1"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_1"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_2"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_2"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_1"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_3"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_3"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_4"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_4"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_2"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_5"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_5"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_6"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_6"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_7"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_7"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_8"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_8"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_3"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_9"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_9"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_10"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_10"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_11"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_11"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_12"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_12"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_4"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_13"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_13"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_14"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_14"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_15"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_15"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_16"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_16"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_5"))
+
+    model.add(Flatten(name="flatten_1"))
+    model.add(Dense(4096, activation='relu', name="dense_1"))
+    model.add(Dropout(0.5, name="dropout_1"))
+    model.add(Dense(4096, activation='relu', name="dense_2"))
+    model.add(Dropout(0.5, name="dropout_2"))
+    model.add(Dense(1000, activation='softmax', name="dense_3"))
+
+    if model_name:
+        model.name = model_name
+    else:
+        model.name = "VGG19"
+
+    if pretr_weights_file:
+        model.load_weights(pretr_weights_file)
+        model.layers.pop()
+        model.outputs = [model.layers[-1].output]
+        model.layers[-1].outbound_nodes = []
+        model.add(Dense(nb_classes, activation='softmax', name="dense_4"))
+
+    # Freeze layers until specified number
+    # for k in range(freeze_until):
+    #     model.layers[k].trainable = True
+
+    return model
+
+
+def VGG_celeba(nb_classes, img_dim, pretr_weights_file=None, model_name=None):
+    """
+    Build Convolution Neural Network
+
+    args : nb_classes (int) number of classes
+           img_dim (tuple of int) num_chan, height, width
+           pretr_weights_file (str) file holding pre trained weights
+
+    returns : model (keras NN) the Neural Net model
+    """
+
+    model = Sequential()
+    model.add(Convolution2D(32, 3, 3, name="convolution2d_1", input_shape=(3, 224, 224), border_mode="same", activation='relu'))
+    model.add(Convolution2D(32, 3, 3, name="convolution2d_2", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_1"))
+
+    model.add(Convolution2D(64, 3, 3, name="convolution2d_3", border_mode="same", activation='relu'))
+    model.add(Convolution2D(64, 3, 3, name="convolution2d_4", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_2"))
+
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_5", border_mode="same", activation='relu'))
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_6", border_mode="same", activation='relu'))
+    model.add(Convolution2D(128, 3, 3, name="convolution2d_7", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_3"))
+
+    model.add(Convolution2D(256, 3, 3, name="convolution2d_8", border_mode="same", activation='relu'))
+    model.add(Convolution2D(256, 3, 3, name="convolution2d_9", border_mode="same", activation='relu'))
+    model.add(Convolution2D(256, 3, 3, name="convolution2d_10", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_4"))
+
+    model.add(Convolution2D(512, 3, 3, name="convolution2d_11", border_mode="same", activation='relu'))
+    model.add(Convolution2D(512, 3, 3, name="convolution2d_12", border_mode="same", activation='relu'))
+    model.add(Convolution2D(512, 3, 3, name="convolution2d_13", border_mode="same", activation='relu'))
+    model.add(MaxPooling2D((2,2), strides=(2, 2), name="maxpooling2d_5"))
+
+    model.add(Flatten(name="flatten_1"))
+    model.add(Dense(4096, activation='relu', name="dense_1"))
+    model.add(Dropout(0.5, name="dropout_1"))
+    model.add(Dense(4096, activation='relu', name="dense_2"))
+    model.add(Dropout(0.5, name="dropout_2"))
+    model.add(Dense(2, activation='softmax', name="dense_3"))
+
+    if model_name:
+        model.name = model_name
+    else:
+        model.name = "VGG_celeba"
+
+    if pretr_weights_file:
+        model.load_weights(pretr_weights_file)
+        model.layers.pop()
+        model.outputs = [model.layers[-1].output]
+        model.layers[-1].outbound_nodes = []
+        model.add(Dense(nb_classes, activation='softmax', name="dense_4"))
+
+    # Freeze layers until specified number
+    # for k in range(freeze_until):
+    #     model.layers[k].trainable = True
+
+    return model
+
+
+def VGGCAM(nb_classes, img_dim, pretr_weights_file=None, model_name=None):
+    """
+    Build VGGCAM network
+
+    args : nb_classes (int) number of classes
+           img_dim (tuple of int) num_chan, height, width
+           pretr_weights_file (str) file holding pre trained weights
+
+    returns : model (keras NN) the Neural Net model
+    """
+
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=img_dim, name="zeropadding2d_1"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_1"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_2"))
+    model.add(Convolution2D(64, 3, 3, activation='relu', name="convolution2d_2"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_1"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_3"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_3"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_4"))
+    model.add(Convolution2D(128, 3, 3, activation='relu', name="convolution2d_4"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_2"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_5"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_5"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_6"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_6"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_7"))
+    model.add(Convolution2D(256, 3, 3, activation='relu', name="convolution2d_7"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_3"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_8"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_8"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_9"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_9"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_10"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_10"))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2), name="maxpooling2d_4"))
+
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_11"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_11"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_12"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_12"))
+    model.add(ZeroPadding2D((1, 1), name="zeropadding2d_13"))
+    model.add(Convolution2D(512, 3, 3, activation='relu', name="convolution2d_13"))
+
+    # Add another conv layer with ReLU + GAP
+    model.add(Convolution2D(1024, 3, 3, activation='relu', border_mode="same", name="convolution2d_14"))
+    model.add(AveragePooling2D((14, 14), name="average_pooling2d_1"))
+    model.add(Flatten(name="flatten_1"))
+    # Add the W layer
+    model.add(Dense(10, activation='softmax', name="dense_1"))
+
+    if model_name:
+        model.name = model_name
+    else:
+        model.name = "VGGCAM"
+
+    if pretr_weights_file:
+
+        with h5py.File(pretr_weights_file) as hw:
+            for k in range(hw.attrs['nb_layers']):
+                g = hw['layer_{}'.format(k)]
+                weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
+                model.layers[k].set_weights(weights)
+                if model.layers[k].name == "convolution2d_13":
                     break
-            print
-            print 'Epoch %s/%s, Time: %s' % (e + 1, nb_epoch, time.time() - start)
-            y_test_pred = model.predict(X_test, verbose=0)
-            train_loss = float(np.mean(l_train_loss))  # use float to make json serializable
-            test_auc = roc_auc_score(y_test_bin, y_test_pred)
-            test_loss = log_loss(y_test_bin, y_test_pred)
-            print "Train loss:", train_loss, "Test loss:", test_loss, "Test AUC:", test_auc
-            list_train_loss.append(train_loss)
-            list_test_loss.append(test_loss)
+    return model
 
-        # Record experimental data in a dict
-        d_log = {}
-        d_log["nb_classes"] = nb_classes
-        d_log["num_frames"] = num_frames
-        d_log["batch_size"] = batch_size
-        d_log["n_batch_per_epoch"] = n_batch_per_epoch
-        d_log["nb_epoch"] = nb_epoch
-        d_log["epoch_size"] = epoch_size
-        d_log["prob"] = prob
-        d_log["optimizer"] = opt.get_config()
-        d_log["augmentator_config"] = DataAug.get_config()
-        d_log["train_loss"] = list_train_loss
-        d_log["test_loss"] = list_test_loss
 
-        from keras.utils.visualize_util import plot
-        png_file = os.path.join(exp_dir, 'archi.png')
-        plot(model, to_file=png_file, show_shapes=True)
+def get_classmap(model, X, nb_classes, batch_size, num_input_channels, ratio):
 
-        json_file = os.path.join(exp_dir, 'experiment_log.json')
-        general_utils.save_exp_log(json_file, d_log)
+    inc = model.layers[0].input
+    conv6 = model.layers[-4].output
+    conv6_resized = absconv.bilinear_upsampling(conv6, ratio,
+                                                batch_size=batch_size,
+                                                num_input_channels=num_input_channels)
+    WT = model.layers[-1].W.T
+    conv6_resized = K.reshape(conv6_resized, (-1, num_input_channels, 224 * 224))
+    classmap = K.dot(WT, conv6_resized).reshape((-1, nb_classes, 224, 224))
+    get_cmap = K.function([inc], classmap)
+    return get_cmap([X])
 
-    except KeyboardInterrupt:
-        shutil.rmtree(exp_dir)
 
-if __name__ == '__main__':
+def load(model_name, nb_classes, img_dim, pretr_weights_file=None):
 
-    pass
+    if model_name == "VGG":
+        model = VGG(nb_classes, img_dim, pretr_weights_file=pretr_weights_file, model_name=None)
+    elif model_name == "VGG19":
+        model = VGG19(nb_classes, img_dim, pretr_weights_file=pretr_weights_file, model_name=None)
+    elif model_name == "VGGCAM":
+        model = VGGCAM(nb_classes, img_dim, pretr_weights_file=pretr_weights_file, model_name=None)
+    elif model_name == "CNN":
+        model = CNN(nb_classes, img_dim, pretr_weights_file=pretr_weights_file, model_name=None)
+    elif model_name == "VGG_celeba":
+        model = VGG_celeba(nb_classes, img_dim, pretr_weights_file=pretr_weights_file, model_name=None)
+    return model
