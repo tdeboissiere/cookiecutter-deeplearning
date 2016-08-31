@@ -462,7 +462,7 @@ def setup_logging(experiment):
         exp_dir = os.path.join(model_dir, experiment)
     else:
         exp_dir = os.path.join(model_dir, "Experiment_%s" % len(list_exp))
-    general_utils.create_dir(exp_dir)
+    create_dir(exp_dir)
 
 if __name__ == '__main__':
 
