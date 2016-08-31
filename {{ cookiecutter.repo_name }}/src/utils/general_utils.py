@@ -4,6 +4,8 @@ import pandas as pd
 import h5py
 import numpy as np
 from sklearn.metrics import confusion_matrix
+
+from dotenv import load_dotenv, find_dotenv
 try:
     import matplotlib.pylab as plt
     import matplotlib.gridspec as gridspec
@@ -12,6 +14,7 @@ except:
     pass
 import json
 import glob
+
 
 
 def pretty_print(string):
@@ -439,6 +442,27 @@ def pickle3_to_pickle2():
             print(d["values"][0][0][0])
             with open(fout, "wb") as fpyth2:
                 pickle.dump(d, fpyth2, protocol=2)
+
+def setup_logging(experiment):
+
+    # Load env variables in (in .env file at the root of the project)
+    load_dotenv(find_dotenv())
+
+    model_dir = os.path.expanduser(os.environ.get("MODEL_DIR"))
+    data_dir = os.path.expanduser(os.environ.get("DATA_DIR"))
+
+    # Output path where we store experiment log and weights
+    model_dir = os.path.join(model_dir, "DCGAN")
+    # Create if it does not exist
+    create_dir(model_dir)
+    # Automatically determine experiment name
+    list_exp = glob.glob(model_dir + "/*")
+    # Create the experiment dir and weights dir
+    if experiment:
+        exp_dir = os.path.join(model_dir, experiment)
+    else:
+        exp_dir = os.path.join(model_dir, "Experiment_%s" % len(list_exp))
+    general_utils.create_dir(exp_dir)
 
 if __name__ == '__main__':
 

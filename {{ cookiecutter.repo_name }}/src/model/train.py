@@ -66,25 +66,8 @@ def train(model_name, **kwargs):
     experiment = kwargs["experiment"]
     list_folds = kwargs["list_folds"]
 
-    # Load env variables in (in .env file at the root of the project)
-    load_dotenv(find_dotenv())
-
-    # Load env variables
-    model_dir = os.path.expanduser(os.environ.get("MODEL_DIR"))
-    data_dir = os.path.expanduser(os.environ.get("DATA_DIR"))
-
-    # Output path where we store experiment log and weights
-    model_dir = os.path.join(model_dir, model_name)
-    # Create if it does not exist
-    general_utils.create_dir(model_dir)
-    # Automatically determine experiment name
-    list_exp = glob.glob(model_dir + "/*")
-    # Create the experiment dir and weights dir
-    if experiment:
-        exp_dir = os.path.join(model_dir, experiment)
-    else:
-        exp_dir = os.path.join(model_dir, "Experiment_%s" % len(list_exp))
-    general_utils.create_dir(exp_dir)
+    # Setup environment (logging directory etc)
+    general_utils.setup_logging(experiment)
 
     # Compile model.
     # opt = RMSprop(lr=5E-6, rho=0.9, epsilon=1e-06)
@@ -116,7 +99,6 @@ def train(model_name, **kwargs):
     DataAug.add_transform("random_crop", min_crop_size=140, max_crop_size=160)
     # DataAug.add_transform("hist_equal")
     # DataAug.add_transform("random_occlusion", occ_size_x=100, occ_size_y=100)
-    DataAug.add_transform("random_mask", arr_mask=np.load(os.path.join(data_dir, "arr_cmap_tensorflow_reshaped.npy")))
 
     epoch_size = n_batch_per_epoch * batch_size
 
