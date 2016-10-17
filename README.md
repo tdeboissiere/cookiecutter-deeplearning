@@ -13,3 +13,6 @@ _A logical, reasonably standardized, but flexible project structure for doing an
 
     cookiecutter https://github.com/tdeboissiere/cookiecutter-deeplearning.git
 
+### Credits:
+
+Largely inspired by https://github.com/drivendata/cookiecutter-data-science
