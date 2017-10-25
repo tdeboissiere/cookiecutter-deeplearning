@@ -9,3 +9,6 @@ numpy
 scipy
 h5py
 matplotlib
+colorama
+tqdm
+terminaltables
